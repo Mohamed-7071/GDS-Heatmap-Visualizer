@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
-# ---- fixed destination folder (change if you prefer) ----
+
 PREDEFINED_DIR = Path.home() / "Documents" / "HeatMapApp" / "gds_inputs"
 
 
