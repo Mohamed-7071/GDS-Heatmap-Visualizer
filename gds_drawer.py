@@ -3,14 +3,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.interpolate import griddata
-from pathlib import Path
+from pathlib import Path as FilePath   # alias Pathlib Path
 from PyQt5.QtWidgets import QApplication, QFileDialog
 import sys
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path as MplPath   # alias Matplotlib Path
 
 # -------------------
 # File paths
 # -------------------
-GDS_DIR = Path("C:/HeatMapApp/gds_inputs")
+GDS_DIR = FilePath("C:/HeatMapApp/gds_inputs")
 NODES_FILE = "nodes.txt"
 VOLTAGES_FILE = "voltages.txt"
 
@@ -56,6 +58,7 @@ def load_voltages(filename):
                 voltages.append(v)
     return np.array(voltages)
 
+
 # -------------------
 # Main
 # -------------------
@@ -73,13 +76,8 @@ if not all_cells:
 
 cell = lib.cells[-1]  # pick last cell
 
-# ---- Draw GDS polygons ----
+# ---- Setup plot ----
 fig, ax = plt.subplots(figsize=(8, 8))
-
-for polygon in cell.polygons:
-    points = polygon.points
-    ax.fill(points[:, 0], points[:, 1], edgecolor="black", fill=False)
-
 ax.set_aspect("equal")
 
 # ---- Heatmap from nodes + voltages ----
@@ -94,16 +92,36 @@ grid_x, grid_y = np.mgrid[xmin:xmax:200j, ymin:ymax:200j]
 # Interpolate voltages at grid points
 grid_z = griddata(nodes, voltages, (grid_x, grid_y), method="cubic")
 
-# Overlay heatmap
+# Draw heatmap first (full bounding box)
 im = ax.imshow(
     grid_z.T,
     extent=[xmin, xmax, ymin, ymax],
     origin="lower",
-    cmap="hot",
-    alpha=0.6
+    cmap=plt.get_cmap("jet"),      # blue → green → yellow → red
+    vmin=np.min(voltages),         # lowest voltage = blue
+    vmax=np.max(voltages),         # highest voltage = red
+    alpha=0.8
 )
 
-# Add colorbar for reference
+# ---- Build ONE clipping path from all polygons ----
+all_paths = []
+for polygon in cell.polygons:
+    all_paths.append(MplPath(polygon.points))
+
+# Combine into a compound path
+compound_path = MplPath.make_compound_path(*all_paths)
+
+# Use compound path as clip mask
+patch = PathPatch(compound_path, facecolor="none", edgecolor="none")
+ax.add_patch(patch)
+im.set_clip_path(patch)
+
+# ---- Draw polygon outlines for clarity ----
+for polygon in cell.polygons:
+    points = polygon.points
+    ax.plot(points[:, 0], points[:, 1], color="black", linewidth=0.5)
+
+# ---- Colorbar ----
 plt.colorbar(im, ax=ax, label="Voltage")
 
 plt.show()
